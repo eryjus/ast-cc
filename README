@@ -1,0 +1,15 @@
+ast-cc is an Abstract Syntax Tree compiler.
+Copyright (C) 2014  Adam Clark
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+ast-cc is an Abstract Syntax Tree compiler.  It will translate specifications into C++ code that can be included in a larger translation project.  It is similar in nature to flex and bison and is intended to be part of the toolset for compiler creation.
+
+Currently, ast-cc is in a simple form and does not have a mature command set.  ast-cc only supports C++.
+
+ 

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="ast-cc" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/Debug/ast-cc" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="bin/Release/ast-cc" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+			<Add option="-fexceptions" />
+		</Compiler>
+		<Unit filename="ast-cc.cc" />
+		<Unit filename="ast-cc.h" />
+		<Unit filename="lexer.l">
+			<Option compile="1" />
+			<Option link="1" />
+			<Option weight="30" />
+			<Option compiler="gcc" use="1" buildCommand="flex -olexer.cc lexer.l &amp;&amp; $compiler $options $includes -c lexer.cc -o $object" />
+		</Unit>
+		<Unit filename="lists.h" />
+		<Unit filename="parser.y">
+			<Option compile="1" />
+			<Option link="1" />
+			<Option weight="0" />
+			<Option compiler="gcc" use="1" buildCommand="bison --report=all -t --defines=parser.h -o parser.cc parser.y &amp;&amp;  $compiler $options $includes -c parser.cc -o $object" />
+		</Unit>
+		<Extensions>
+			<code_completion />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

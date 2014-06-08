@@ -1,0 +1,15 @@
+$class(Expression) $abstract ${
+   $attr $type(int) $name(line_no)
+   $attr $type(string) $name(file)
+   $attr $type(char *) $name(name)
+   $attr $type(int) $name(type)  = $no-init(0)
+   $func $spec(void semant(void)) = $virtual
+   $func $spec(void print(ostream &s)) = { s << file << ": " << line_no; }
+$}
+
+$class(ID) $inherits(Expression) ${
+   $factory(Expression)
+   $attr $type(string) $name(id_string) = $no-inlines
+   $func $spec(void semant(void)) = $external
+   $func $spec(Symbol *GetSymbol(void)) = { return SymTable->Get(id_string); }
+$}

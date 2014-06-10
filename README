@@ -25,3 +25,6 @@ ast-cc only supports C++.
 
 To build ast-cc, you will need flex and bison installed.  I currently compile
 it under Fedora Core 19 using a Code::Blocks project, which is also included.
+
+Documentation on the specification language is found here:
+https://github.com/eryjus/ast-cc/wiki/Source-API

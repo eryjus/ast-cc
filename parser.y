@@ -19,6 +19,7 @@
 %{
     #include "ast-cc.h"
 	#include <stdio.h>
+	#include <cstring>
 
 	extern int curr_lineno;
 	extern int parse_error;
@@ -36,6 +37,7 @@
 %token  TOKEN_ABSTRACT
 %token  TOKEN_ATTR
 %token  TOKEN_CLASS
+%token  TOKEN_DEFINES
 %token  TOKEN_EXTERNAL
 %token  TOKEN_FACTORY
 %token  TOKEN_FUNC
@@ -69,24 +71,39 @@
     FeatureList *featList;
     NodeList *nodes;
     Node *node;
+    Ast *ast;
 }
 
-%type   <code_lit>  TOKEN_CODE_LIT inherits_opt
+%type   <code_lit>  TOKEN_CODE_LIT inherits_opt block_opt
 %type   <code>      TOKEN_CODE
 
 %type   <opts>      abstract_opt attr_option_s attr_option func_option attr_option_opt
 %type   <feat>      attr_feature factory_feature feature func_feature
 %type   <featList>  feature_s
-%type   <nodes>     node_s target
+%type   <nodes>     node_s
 %type   <node>      node
+%type   <ast>       target
 
 %%
 
 target
-    : node_s
+    : block_opt node_s
         {
-            $$ = $1;
-            tree = $1;
+            $$ = Ast::factory($1, $2);
+            tree = $$;
+        }
+    ;
+
+block_opt
+    :   // empty!!
+        {
+            $$ = (char *)0;
+        }
+    | TOKEN_DEFINES TOKEN_CODE
+        {
+            $2 ++;
+            $2[strlen($2) - 1] = 0;
+            $$ = $2;
         }
     ;
 

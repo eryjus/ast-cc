@@ -39,12 +39,14 @@ LET                         [_a-zA-Z]
 
 %%
 
+\/\/[^\n]*\n                { curr_lineno ++; }
 {WS}                        { }
 \n                          { curr_lineno ++; }
 
 \$(?i:abstract)             { return TOKEN_ABSTRACT; }
 \$(?i:attr)                 { return TOKEN_ATTR; }
 \$(?i:class)                { return TOKEN_CLASS; }
+\$(?i:defines)              { return TOKEN_DEFINES; }
 \$(?i:external)             { return TOKEN_EXTERNAL; }
 \$(?i:factory)              { return TOKEN_FACTORY; }
 \$(?i:func)                 { return TOKEN_FUNC; }

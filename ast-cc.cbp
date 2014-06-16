@@ -26,6 +26,9 @@
 				<Linker>
 					<Add option="-s" />
 				</Linker>
+				<ExtraCommands>
+					<Add after="cp bin/Release/ast-cc /home/adam/bin/ast-cc" />
+				</ExtraCommands>
 			</Target>
 		</Build>
 		<Compiler>

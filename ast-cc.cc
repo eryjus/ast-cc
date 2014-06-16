@@ -117,7 +117,7 @@ extern char *curr_file;
 char *dft_val = 0;
 bool prtComma = false;
 
-NodeList *tree;
+Ast *tree;
 
 
 // -- Semantic checking is extremely simple...  pass any errors on to the C++ code
@@ -142,6 +142,11 @@ void semant(NodeList *list)
             }
         }
     }
+}
+
+void semant(Ast *tree)
+{
+    semant(tree->Get_nodes());
 }
 
 void PrintTok(int tok)
@@ -266,6 +271,13 @@ int Attr::EmitAttrsAsFormal(ostream &os, int vars)
     return vars;
 }
 
+bool FeatureList::NeedsColon(void)
+{
+    bool rv = false;
+    if (prev) rv = prev->NeedsColon();
+    return rv || feat->NeedsColon();
+}
+
 void Func::EmitMethod(ostream &os)
 {
     os << "    virtual " << spec;
@@ -341,7 +353,7 @@ int Node::EmitAttrsAsFormal(ostream &os)
 
     if (parent) rv = parent->EmitAttrsAsFormal(os);
 
-    rv = feats->EmitAttrsAsFormal(os, rv);
+    if (feats) rv = feats->EmitAttrsAsFormal(os, rv);
 
     return rv;
 }
@@ -415,7 +427,7 @@ void Node::EmitCode(ostream &os)
     os << "    " << name << "(";
     EmitAttrsAsFormal(os);
     os << ") ";
-    if (vars) os << ": ";
+    if (NeedsColon()) os << ": ";
     inh = (parent?parent->GetLocalAttrCount():0);
 
     if (inh) {
@@ -429,31 +441,39 @@ void Node::EmitCode(ostream &os)
 
     if (inh && vars - inh) os << ", ";
     prtComma = false;
-    feats->EmitConstruct(os, inh + 1);
+    if (feats) feats->EmitConstruct(os, inh + 1);
     os << " { }" << endl;
     os << endl;
 
     // -- protected:
     // --     type name;
     os << "protected:" << endl;
-    feats->EmitAttrCode(os);
+    if (feats) feats->EmitAttrCode(os);
     os << endl;
 
     // -- public:
     // --     virtual <type> Get_<name>(void) const { return <name>; }
     // --     virtual void Set_<name>(type __val__) { <name> = __val__; }
     os << "public:" << endl;
-    feats->EmitAttrInline(os);
+    if (feats) feats->EmitAttrInline(os);
     os << endl;
 
     // --     virtual <methodspec> { <name> = __val__; }
     // --     virtual <methodspec> = 0;
     // --     virtual <methodspec>;
-    feats->EmitMethod(os);
+    if (feats) feats->EmitMethod(os);
 
     // -- };
     os << "};" << endl;
     os << endl;
+}
+
+void Ast::EmitCode(ostream &os)
+{
+    if (defines) os << defines << endl;
+    os << endl;
+
+    nodes->EmitCode(os);
 }
 
 void NodeList::EmitEnum(ostream &os)
@@ -481,7 +501,7 @@ int main(int argc, char *argv[])
 	}
 
     cout << "Entering Semantic Phase..." << endl;
-    tree->BuildParents();
+    tree->Get_nodes()->BuildParents();
 	semant(tree);
 
     // -- we are emitting a list of classes.  Therefore let's start by opening a file
@@ -498,7 +518,7 @@ int main(int argc, char *argv[])
 
     // -- Emit the enum types
     os << "typedef enum {" << endl;
-    tree->EmitEnum(os);
+    tree->Get_nodes()->EmitEnum(os);
     os << "} AstNodeType;" << endl;
     os << endl;
 

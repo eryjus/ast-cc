@@ -62,6 +62,7 @@ public:
     virtual void EmitAttrCode(ostream &os) = 0;
     virtual void EmitAttrInline(ostream &os) = 0;
     virtual void EmitMethod(ostream &os) = 0;
+    virtual bool NeedsColon(void) = 0;
 };
 
 class Attr : public Feature {
@@ -102,6 +103,7 @@ public:
     virtual void EmitAttrCode(ostream &os);
     virtual void EmitAttrInline(ostream &os);
     virtual void EmitMethod(ostream &os) { };
+    virtual bool NeedsColon(void) { return true; }
 
 public:
     static Feature *factory(char *v1, char *v2, Opts v3, char *v4) { return new Attr(v1, v2, v3, v4); }
@@ -137,6 +139,7 @@ public:
     virtual void EmitAttrCode(ostream &os) { }
     virtual void EmitAttrInline(ostream &os) { }
     virtual void EmitMethod(ostream &os) { };
+    virtual bool NeedsColon(void) { return false; }
 };
 
 class Func : public Feature {
@@ -179,6 +182,7 @@ public:
     virtual void EmitAttrCode(ostream &os) { }
     virtual void EmitAttrInline(ostream &os) { }
     virtual void EmitMethod(ostream &os);
+    virtual bool NeedsColon(void) { return false; }
 };
 
 class FeatureList {
@@ -213,6 +217,7 @@ public:
     virtual void EmitAttrCode(ostream &os);
     virtual void EmitAttrInline(ostream &os);
     virtual void EmitMethod(ostream &os);
+    virtual bool NeedsColon(void);
 };
 
 class Node {
@@ -273,7 +278,8 @@ public:
     virtual void EmitCode(ostream &os);
     virtual char *GetReturnType(void);
     virtual int EmitAttrsAsFormal(ostream &os);
-    virtual int GetLocalAttrCount(void) { return feats->GetLocalAttrCount(); }
+    virtual int GetLocalAttrCount(void) { return (feats?feats->GetLocalAttrCount():0); }
+    virtual bool NeedsColon(void) { return (feats?feats->NeedsColon():false); }
 };
 
 class NodeList {
@@ -310,7 +316,33 @@ public:
     virtual void EmitCode(ostream &os);
 };
 
-extern NodeList *tree;
+class Ast {
+protected:
+    char *defines;
+
+public:
+    virtual char *Get_defines(void) const { return defines; }
+    virtual void Set_defines(char *__val__) { defines = __val__; }
+
+protected:
+    NodeList *nodes;
+
+public:
+    virtual NodeList *Get_nodes(void) const { return nodes; }
+    virtual void Set_nodes(NodeList *__val__) { nodes = __val__; }
+
+public:
+    static Ast *factory(char *v1, NodeList *v2) { return new Ast(v1, v2); }
+    static Ast *empty(void) { return (Ast *)0; }
+
+protected:
+    Ast(char *v1, NodeList *v2) : defines(v1), nodes(v2) { }
+
+public:
+    void EmitCode(ostream &os);
+};
+
+extern Ast *tree;
 extern char *dft_val;
 
 #endif

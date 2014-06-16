@@ -6,6 +6,11 @@ typedef enum {
     NODE_ID,
 } AstNodeType;
 
+
+    class Expression;
+    typedef Expression *Expr;
+
+
 class Expression {
 public:
     static Expression *empty(void) { return (Expression *)0; }

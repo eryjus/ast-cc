@@ -1,12 +1,23 @@
+// -- Include all the exernal defines required for this file
+//    ------------------------------------------------------
+$defines{
+    class Expression;
+    typedef Expression *Expr;
+}
+
+// -- This is an abstract Expression
+//    ------------------------------
 $class(Expression) $abstract ${
-   $attr $type(int) $name(line_no)
-   $attr $type(string) $name(file)
+   $attr $type(int) $name(line_no) // -- The source file line number
+   $attr $type(string) $name(file) // -- The source file name
    $attr $type(char *) $name(name)
-   $attr $type(int) $name(type)  = $no-init(0)
+   $attr $type(int) $name(type)  = $no-init(0) // -- will be filled in the semant() as a result of type checking
    $func $spec(void semant(void)) = $virtual
    $func $spec(void print(ostream &s)) = { s << file << ": " << line_no; }
 $}
 
+// -- This is an expresion that is really a variable of some kind
+//    -----------------------------------------------------------
 $class(ID) $inherits(Expression) ${
    $factory(Expression)
    $attr $type(string) $name(id_string) = $no-inlines

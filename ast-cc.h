@@ -263,6 +263,9 @@ public:
     virtual char *Get_factType(void) const { return factType; }
     virtual void Set_factType(char *v) {factType = v; }
 
+protected:
+    bool hasInitParms;
+
 public:
     virtual NodeType GetNodeType(void) { return NODE_Node; }
 
@@ -271,7 +274,8 @@ public:
     static Node *empty() { return (Node *)0; }
 
 protected:
-    Node(char *v1, char *v2, Opts v3, FeatureList *v4) : parent(0), name(v1), inherits(v2), opt(v3), feats(v4) {}
+    Node(char *v1, char *v2, Opts v3, FeatureList *v4) : parent(0), name(v1), inherits(v2), opt(v3),
+        feats(v4), hasInitParms(false) {}
 
 public:
     virtual bool IsAbstract(void) { return (opt & OPT_ABSTRACT) != 0; }

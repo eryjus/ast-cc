@@ -427,7 +427,7 @@ void Node::EmitCode(ostream &os)
     os << "    " << name << "(";
     EmitAttrsAsFormal(os);
     os << ") ";
-    if (NeedsColon()) os << ": ";
+    if (NeedsColon()  || (parent && parent->hasInitParms)  ) os << ": ";
     inh = (parent?parent->GetLocalAttrCount():0);
 
     if (inh) {
@@ -441,7 +441,7 @@ void Node::EmitCode(ostream &os)
 
     if (inh && vars - inh) os << ", ";
     prtComma = false;
-    if (feats) feats->EmitConstruct(os, inh + 1);
+    if (feats && feats->EmitConstruct(os, inh + 1) > inh + 1) hasInitParms = true;
     os << " { }" << endl;
     os << endl;
 

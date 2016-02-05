@@ -44,6 +44,7 @@
 			<Option compiler="gcc" use="1" buildCommand="flex -olexer.cc lexer.l &amp;&amp; $compiler $options $includes -c lexer.cc -o $object" />
 		</Unit>
 		<Unit filename="lists.h" />
+		<Unit filename="makefile" />
 		<Unit filename="parser.y">
 			<Option compile="1" />
 			<Option link="1" />

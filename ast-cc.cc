@@ -424,7 +424,7 @@ void Node::EmitCode(ostream &os)
     // -- protected:
     // --    <name>(<attr-inits>) : <inherited-class>(<inits>), <attr>(<init>)... {}
     os << "protected:" << endl;
-    os << "    " << name << "(";
+    os << "    explicit " << name << "(";
     EmitAttrsAsFormal(os);
     os << ") ";
     if (NeedsColon()  || (parent && parent->hasInitParms)  ) os << ": ";

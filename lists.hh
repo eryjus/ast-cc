@@ -32,6 +32,7 @@ public:
 public:
     T *elem(void) const { return _elem; };
     List<T> *next(void) const { return _nextList; };
+    void next(List<T> *n) { _nextList = n; }
 };
 
 // -- Templates for lists
@@ -40,8 +41,8 @@ template <class T>
 inline T *Append(T *l, T *r) {
 	T *rv = l;
 	if (!l) return r; if (!r) return l;
-	while(l->next) l = (T *)l->next;
-	l->next = r;
+	while(l->next()) l = (T *)l->next();
+	l->next(r);
 	return rv;
 }
 
@@ -57,15 +58,22 @@ inline bool More(T *l) {
 
 template <class T>
 inline T *Next(T *l) {
-	if (more((T *)l)) return (T *)l->next;
+	if (More((T *)l)) return (T *)l->next();
 	else return (T *)0;
 }
 
 template <class T>
 inline int Len(T *i) {
 	int rv; T *l;
-	for (rv = 0, l = first((T *)i); more((T *)l); l = next((T *)l)) rv ++;
+	for (rv = 0, l = First((T *)i); More((T *)l); l = Next((T *)l)) rv ++;
 	return rv;
+}
+
+template <class T>
+inline T *Nth(T* l, int n) {
+    if (n >= Len(l)) return (T *)0;
+    for (; n > 0 && More(l); n --, l = Next(l)) { }
+    return l;
 }
 
 #endif

@@ -1,534 +1,347 @@
-/*
- *  ast-cc is an Abstract Syntax Tree compiler
- *  Copyright (C) 2014  Adam Clark
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+//===================================================================================================================
+// ast-cc.cc -- This file is contains the necessary functions to maintain the structures of the AST for ast-cc.
+//
+//    ast-cc is an Abstract Syntax Tree compiler
+//    Copyright (C) 2014  Adam Clark
+//
+//    This program is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation, either version 3 of the License, or
+//    (at your option) any later version.
+//
+//    This program is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    You should have received a copy of the GNU General Public License
+//    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+// This file represents v0.1 of the ast grammar.  This also represents a nearly complete rewrite of the
+// ast-cc compiler.  The reason for this is taht in implementing a very abstract AST in the pascal compiler,
+// I noticed several shortcomings in the feature/functionality of the current language (along with all those
+// damned dollar signs).
+//
+// This version is going to use '%%' as separators between sections so that it is closer to that of the
+// flex and bison source formatting.
+//
+// -----------------------------------------------------------------------------------------------------------------
+//
+//    Date     Tracker  Version  Pgmr  Modification
+// ----------  -------  -------  ----  -----------------------------------------------------------------------------
+// 2016-03-28    N/A     v0.1    ADCL  second version of the ast language
+//
+//===================================================================================================================
 
-// ============================================================================================
-//
-//    File: ast-cc.cc
-//    This is the main source file for the ast-cc program.  ast-cc is an Abstract Syntax
-//    Tree compiler that will translate a specification file into a target language --
-//    initially C++.
-//
-//    Date: 03-Jun-14
-//    Programmer: Adam Clark
-//
-// ============================================================================================
-
-// --------------------------------------------------------------------------------------------
-// The following provides a sample of the "source" and the resulting C++ code:
-//
-// $class Expression $abstract ${
-//    $attr int line_no
-//    $attr string file
-//    $attr int type $no-init
-//
-//    $func void semant(void) = $virtual
-//    $func void print(ostream &s) = { s << file << ": " << line_no; }
-// $}
-//
-// $class ID : Expression ${
-//    $factory Expression
-//    $attr string id_string $no-inlines
-//
-//    $func void semant(void) = $external
-//    $func Symbol *GetSymbol(void) = { return SymTable->Get(id_string); }
-// $}
-//
-// --------------------------------------------------------------------------------------------
-//
-// class Expression {
-// protected:
-//    Expression(int v1, string v2) : line_no(v1), file(v2) {}
-//
-// public:
-//    static Expression *empty(void) { return (Expression *)0; }
-//
-// protected:
-//    int line_no;
-//    string file;
-//    int type;
-//
-// public:
-//    virtual void semant(void) = 0;
-//    virtual void print(ostream &s) { s << file << ": " << line_no; }
-//
-// public:
-//    virtual int Get_line_no(void) const { return line_no; }
-//    virtual void Set_line_no(int v) { line_no = v; }
-//
-// public:
-//    virtual string Get_file(void) const { return file; }
-//    virtual void Set_file(string v) { file = v; }
-//
-// public:
-//    virtual int Get_type(void) const { return type; }
-//    virtual void Set_type(int v) { type = v; }
-// };
-//
-//
-// class ID : public Expression {
-// public:
-//    static Expression *factory(int v1, string v2, string v3) { return new ID(v1, v2, v3); }
-//    static Expression *empty(void) { return (Expression *)0; }
-//
-// protected:
-//    ID(int v1, string v2, string v3) : Expression(v1, v2), id_string(v3) {}
-//
-// protected:
-//    string id_string;
-//
-// public:
-//    virtual void semant(void);
-//    virtual Symbol *GetSymbol(void) { return SymTable->Get(id_string); }
-// };
-//
-// --------------------------------------------------------------------------------------------
-
-#include "ast-cc.h"
-#include "parser.h"
-
+#include "lists.hh"
+#include "ast-cc.hh"
 #include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <fstream>
 
-using namespace std;
 
-extern int openBuffer(const char *name);
-extern int yylex(void);
-extern int parse_error;
-extern int yydebug;
-extern char *curr_file;
-
-char *dft_val = 0;
-bool prtComma = false;
-
-Ast *tree;
+extern void cpp_Emit(void);
 
 
-// -- Semantic checking is extremely simple...  pass any errors on to the C++ code
-//    ----------------------------------------------------------------------------
-void semant(NodeList *list)
+//-------------------------------------------------------------------------------------------------------------------
+// Count the number of attributes that need initialization parameters
+//-------------------------------------------------------------------------------------------------------------------
+int Node::GetParmCount(void)
 {
-    for (NodeList *l = list; l; l = l->Get_prev()) {
-        Node *n = l->Get_node();
+    AttrList *al;
+    int rv = 0;
 
-        n->Set_factType(n->Get_name());
+    if (parent) rv = parent->GetParmCount();
 
-        if (n) {
-            for (FeatureList *f = n->Get_feats(); f; f = f->Get_prev()) {
-                Feature *ff = f->Get_feat();
+    for (al = First(attrs); More(al); al = Next(al)) {
+        if (al->elem()->Get_Flags() & NOINIT) continue;
+        else rv ++;
+    }
 
-                if (ff->IsFactory()) {
-                    Factory *fact = (Factory *)ff;
+    return rv;
+}
 
-                    n->Set_factType(fact->Get_type());
-                    break;
-                }
+
+//
+// -- Initialize the global variables
+//    -------------------------------
+IncludeList *includes = NULL;
+SymTable *symtab = NULL;
+NodeList *nodes = NULL;
+char *endingCode = NULL;
+std::string outputFile = std::string("ast-nodes.hh");
+
+
+//-------------------------------------------------------------------------------------------------------------------
+// AddTypeSymbol(const std::string &) -- Create a TYPE symbol as long as the name does not exist
+//-------------------------------------------------------------------------------------------------------------------
+Symbol *AddTypeSymbol(const std::string &n)
+{
+    if (LookupSymbol(n) == false) {
+        Symbol *rv = Symbol::Factory(TYPE, n);
+        symtab = Append(symtab, new SymTable(rv, NULL));
+        return rv;
+    } else return NULL;
+}
+
+
+//-------------------------------------------------------------------------------------------------------------------
+// AddNodeSymbol(const std::string &) -- Create a NODE symbol as long as the name does not exist
+//-------------------------------------------------------------------------------------------------------------------
+Symbol *AddNodeSymbol(const std::string &n)
+{
+    if (LookupSymbol(n) == false) {
+        Symbol *rv = Symbol::Factory(NODE, n);
+        symtab = Append(symtab, new SymTable(rv, NULL));
+        return rv;
+    } else return NULL;
+}
+
+
+//-------------------------------------------------------------------------------------------------------------------
+// LookupSymbol(const std::string &) -- look for a symbol by name and return whether it exists
+//-------------------------------------------------------------------------------------------------------------------
+bool LookupSymbol(const std::string &n)
+{
+    SymTable *wrk;
+
+    for (wrk = First(symtab); More(wrk); wrk = Next(wrk)) {
+        Symbol *tmp = wrk->elem();
+        if (tmp->Get_Name() == n) return true;
+    }
+
+    return false;
+}
+
+
+//-------------------------------------------------------------------------------------------------------------------
+// GetSymbol(const std::string &) -- look for a symbol by name and return its structure
+//-------------------------------------------------------------------------------------------------------------------
+Symbol *GetSymbol(const std::string &n)
+{
+    SymTable *wrk;
+
+    for (wrk = First(symtab); More(wrk); wrk = Next(wrk)) {
+        Symbol *tmp = wrk->elem();
+        if (tmp->Get_Name() == n) return tmp;
+    }
+
+    return NULL;
+}
+
+
+//-------------------------------------------------------------------------------------------------------------------
+// Semant() -- Perform the semantic checks for the AST
+//-------------------------------------------------------------------------------------------------------------------
+bool Semant(void)
+{
+    bool rv = true;         // assume success
+
+    //
+    // -- By the time we get to this point, we know a few things.  We know that the type and node names are
+    //    unique.  We also know that the types are defined for the attributes, method return types, and
+    //    parameter types.  However, there are a lot of things that still need to be checked.
+    //
+    //    Start simple and check the included files for duplicates (however, not for existance).  Note that
+    //    we do not strip out the punctuation, so <cstdio> and "cstdio" will compare as different files.
+    //    -------------------------------------------------------------------------------------------------
+    for (IncludeList *looper = First(includes); More(looper); looper = Next(looper)) {
+        for (IncludeList *chk = Next(looper); More(chk); chk = Next(chk)) {
+            if (strcmp(looper->elem(), chk->elem()) == 0) {
+                fprintf(stderr, "Error: Include file %s specified more than once\n", looper->elem());
+                rv = false;
             }
         }
     }
-}
 
-void semant(Ast *tree)
-{
-    semant(tree->Get_nodes());
-}
+    //
+    // -- Next we will loop through the classes and start checking them.  First we set up the loop on the
+    //    Nodes.
+    //    -----------------------------------------------------------------------------------------------
+    for (NodeList *nl = First(nodes); More(nl); nl = Next(nl)) {
+        Node *n = nl->elem();
 
-void PrintTok(int tok)
-{
-    switch (tok) {
-    case TOKEN_ABSTRACT:
-        cout << "ABSTRACT" << endl;
-        break;
+        //
+        // -- The first thing to do is loop through all the attribute names and make sure they are unique
+        //    within themselves and the method names.  If they are not unique, we myst issue an error.
+        //    -------------------------------------------------------------------------------------------
+        for (AttrList *al = First(n->Get_Attrs()); More(al); al = Next(al)) {
+            for(AttrList *chk = Next(al); More(chk); chk = Next(chk)) {
+                if (al->elem()->Get_Name() == chk->elem()->Get_Name()) {
+                    fprintf(stderr, "Error: Attrribute name %s in class %s is duplicated\n",
+                            al->elem()->Get_Name().c_str(), n->Get_Name()->Get_Name().c_str());
+                    rv = false;
+                }
+            }
 
-    case TOKEN_ATTR:
-        cout << "ATTR" << endl;
-        break;
+            //
+            // -- Loop through all the methods to make sure we have not duplicated a name
+            //    -----------------------------------------------------------------------
+            for(MethList *chk = First(n->Get_Meths()); More(chk); chk = Next(chk)) {
+                if (al->elem()->Get_Name() == chk->elem()->Get_Name()) {
+                    fprintf(stderr, "Error: Attrribute name %s in class %s is duplicated by method %s\n",
+                            al->elem()->Get_Name().c_str(), n->Get_Name()->Get_Name().c_str(),
+                            chk->elem()->Get_Name().c_str());
+                    rv = false;
+                }
+            }
 
-    case TOKEN_CLASS:
-        cout << "CLASS" << endl;
-        break;
+            //
+            // -- check to make sure that the attributes are properly specified.
+            //    --------------------------------------------------------------
+            Attribute *a = al->elem();
+            int f = a->Get_Flags();
 
-    case TOKEN_EXTERNAL:
-        cout << "EXTERNAL" << endl;
-        break;
+            //
+            // -- if nothing was specified for an attribute, we will assume PROTECTED
+            //    -------------------------------------------------------------------
+            if (!(f & PUBLIC) && !(f & PROTECTED) && !(f & PRIVATE)) {
+                a->Set_Flag(PROTECTED);
+            }
 
-    case TOKEN_FACTORY:
-        cout << "FACTORY" << endl;
-        break;
+            //
+            // -- check to make sure more than one access definition was not specified for an attribute
+            //    -------------------------------------------------------------------------------------
+            if ((f & PUBLIC) && (f & PROTECTED)) {
+                fprintf(stderr, "Error: Cannot specify both PUBLIC and PROTECTED on attribute %s in class %s\n",
+                        a->Get_Name().c_str(), n->Get_Name()->Get_Name().c_str());
+                rv = false;
+            }
 
-    case TOKEN_FUNC:
-        cout << "FUNC" << endl;
-        break;
+            if ((f & PUBLIC) && (f & PRIVATE)) {
+                fprintf(stderr, "Error: Cannot specify both PUBLIC and PRIVATE on attribute %s in class %s\n",
+                        a->Get_Name().c_str(), n->Get_Name()->Get_Name().c_str());
+                rv = false;
+            }
 
-    case TOKEN_INHERITS:
-        cout << "INHERITS" << endl;
-        break;
+            if ((f & PROTECTED) && (f & PRIVATE)) {
+                fprintf(stderr, "Error: Cannot specify both PROTECTED and PRIVATE on attribute %s in class %s\n",
+                        a->Get_Name().c_str(), n->Get_Name()->Get_Name().c_str());
+                rv = false;
+            }
 
-    case TOKEN_NAME:
-        cout << "NAME" << endl;
-        break;
+            //
+            // -- If an attribute has a no-init flag, make sure we have initialization code
+            //    -------------------------------------------------------------------------
+            if ((f & NOINIT) && a->Get_Code() == std::string("")) {
+                fprintf(stderr, "Error: Attribute %s in class %s has a NO-INIT specifier, but no initialization "
+                        "code\n", a->Get_Name().c_str(), n->Get_Name()->Get_Name().c_str());
+                rv = false;
+            }
+        }
 
-    case TOKEN_NO_INIT:
-        cout << "NO_INIT" << endl;
-        break;
+        //
+        // -- At this point, we have taken care of the attribute checking.  Now to move on to the method
+        //    checking, which will be quite a bit more complicated.  Each method signature must be unique.
+        //    A method signature is its name with the types of the parameters passed in (not the return
+        //    type).  Additionally, the parameter names must be unique within each method.  In the event a
+        //    parameter name hides an attribute, we will issue a warning.
+        //
+        //    As we get into this, we know that attribute names and method names do not overlap, as these
+        //    were checked with the attribute checks.
+        //
+        //    We will check method signatures against method signatures in the following manner:
+        //    A) we assume that the 2 methods we are coparing are the same
+        //    B) we compare the names of the 2 methods, and if different they are not the same
+        //    C) we compare the number of parameters between the 2 methods, and if they are different
+        //       they are not the same
+        //    D) Now, we loop through the parameters and if the types are different for any one, then
+        //       they are not the same.
+        //    E) finally, if you reach this point, then we can confirm that they are the same
+        //    --------------------------------------------------------------------------------------------
+        for (MethList *ml = First(n->Get_Meths()); More(ml); ml = Next(ml)) {
+            bool same = true;
+            Method *meth = ml->elem();
 
-    case TOKEN_NO_INLINES:
-        cout << "NO_INLINES" << endl;
-        break;
+            for(MethList *chk = Next(ml); More(chk); chk = Next(chk)) {
+                Method *chkm = chk->elem();
 
-    case TOKEN_SPEC:
-        cout << "SPEC" << endl;
-        break;
+                if (meth->Get_Name() == chkm->Get_Name()) {
+                    if (Len(meth->Get_Parms()) == Len(chkm->Get_Parms())) {
+                        int i;
 
-    case TOKEN_TYPE:
-        cout << "TYPE" << endl;
-        break;
+                        for (i = 0; i < Len(meth->Get_Parms()); i ++) {
+                            Parameter *p = meth->Get_Parm(i);
+                            Parameter *c = chkm->Get_Parm(i);
 
-    case TOKEN_VIRTUAL:
-        cout << "VIRTUAL" << endl;
-        break;
+                            if (p->Get_Type() != c->Get_Type()) same = false;
+                        }
 
-    case TOKEN_OPEN:
-        cout << "OPEN" << endl;
-        break;
+                        if (same) {
+                            fprintf(stderr, "Error: Signature of method %s is duplicated\n",
+                                    meth->Get_Name().c_str());
+                            rv = false;
+                        }
+                    } else same = false;
+                } else same = false;
+            }
 
-    case TOKEN_CLOSE:
-        cout << "CLOSE" << endl;
-        break;
+            if (meth->Get_Code() != "" && meth->Get_Flags() & EXTERNAL) {
+                fprintf(stderr, "Error: EXTERNAL method specified when code is also provided in %s\n",
+                        meth->Get_Name().c_str());
+                rv = false;
+            } else if (meth->Get_Code() == "" && meth->Get_Flags() & !EXTERNAL) {
+                fprintf(stderr, "Error: EXTERNAL method not specified when no code is provided in %s\n",
+                        meth->Get_Name().c_str());
+                meth->Set_Flag(EXTERNAL);
+                rv = false;
+            }
 
-    case TOKEN_LPAREN:
-        cout << "LPAREN" << endl;
-        break;
-
-    case TOKEN_RPAREN:
-        cout << "RPAREN" << endl;
-        break;
-
-    case TOKEN_EQ:
-        cout << "EQ" << endl;
-        break;
-
-    case TOKEN_CODE_LIT:
-        cout << "CODE_LIT: " << yylval.code_lit << endl;
-        break;
-
-    case TOKEN_CODE:
-        cout << "CODE: " << yylval.code << endl;
-        break;
-
-    case TOKEN_ERROR:
-        cout << "ERROR";
-        break;
-
+            if (meth->Get_Code() == "") meth->Set_Flag(EXTERNAL);
+        }
     }
-}
-
-Node *NodeList::FindNodeByName(char *n)
-{
-    if (!n) return 0;
-    if (strcmp(Get_node()->Get_name(), n) == 0) return Get_node();
-    else if (Get_prev()) return Get_prev()->FindNodeByName(n);
-    else return 0;
-}
-
-void NodeList::BuildParents(void)
-{
-    if (Get_prev()) Get_prev()->BuildParents();
-
-    Get_node()->Set_parent(FindNodeByName(Get_node()->Get_inherits()));
-}
-
-void NodeList::EmitCode(ostream &os)
-{
-    if (prev) prev->EmitCode(os);
-    node->EmitCode(os);
-}
-
-int Attr::EmitAttrsAsFormal(ostream &os, int vars)
-{
-    if (opts & OPT_NO_INIT) return vars;
-
-    if (vars) os << ", ";
-    ++ vars;
-    os << type << " " << "__" << vars << "__";
-
-    return vars;
-}
-
-bool FeatureList::NeedsColon(void)
-{
-    bool rv = false;
-    if (prev) rv = prev->NeedsColon();
-    return rv || feat->NeedsColon();
-}
-
-void Func::EmitMethod(ostream &os)
-{
-    os << "    virtual " << spec;
-
-    if (opts & OPT_VIRTUAL) os << " = 0;" << endl;
-    else if (opts & OPT_EXTERNAL) os << ";" << endl;
-    else if (code) os << " " << code << endl;
-    else os << ";" << endl;
-}
-
-void FeatureList::EmitMethod(ostream &os)
-{
-    if (prev) prev->EmitMethod(os);
-    feat->EmitMethod(os);
-}
-
-void Attr::EmitAttrInline(ostream &os)
-{
-    // --     virtual <type> Get_<name>(void) const { return <name>; }
-    // --     virtual void Set_<name>(type __val__) { <name> = __val__; }
-    if (opts & OPT_NO_INLINES) return;
-
-    os << "    virtual " << type << " Get_" << name << "(void) const { return " << name << "; }" << endl;
-    os << "    virtual void Set_" << name << "(" << type << " __val__) { " << name << " = __val__; }" << endl;
-}
-
-void FeatureList::EmitAttrInline(ostream &os)
-{
-    if (prev) prev->EmitAttrInline(os);
-    feat->EmitAttrInline(os);
-}
-
-void Attr::EmitAttrCode(ostream &os)
-{
-    os << "    " << type << " " << name << ";" << endl;
-}
-
-void FeatureList::EmitAttrCode(ostream &os)
-{
-    if (prev) prev->EmitAttrCode(os);
-    feat->EmitAttrCode(os);
-}
-
-int Attr::EmitConstruct(ostream &os, int var)
-{
-    if (prtComma) os << ", ";
-    os << name << "(";
-    prtComma = true;
-    if (opts & OPT_NO_INIT) os << dft;
-    else os << "__" << var ++ << "__";
-    os << ")";
-
-    return var;
-}
-
-int FeatureList::EmitConstruct(ostream &os, int var)
-{
-    if (prev) var = prev->EmitConstruct(os, var);
-    var = feat->EmitConstruct(os, var);
-    return var;
-}
-
-int FeatureList::EmitAttrsAsFormal(ostream &os, int vars)
-{
-    if (prev) vars = prev->EmitAttrsAsFormal(os, vars);
-    vars = Get_feat()->EmitAttrsAsFormal(os, vars);
-    return vars;
-}
-
-int Node::EmitAttrsAsFormal(ostream &os)
-{
-    int rv = 0;
-
-    if (parent) rv = parent->EmitAttrsAsFormal(os);
-
-    if (feats) rv = feats->EmitAttrsAsFormal(os, rv);
 
     return rv;
 }
 
-int FeatureList::GetLocalAttrCount(void)
-{
-    int rv = 0;
-    if (prev) rv = prev->GetLocalAttrCount();
-    rv += feat->GetAttrCount();
-    return rv;
-}
 
-char *Node::GetReturnType(void)
-{
-    FeatureList *wrk = feats;
-
-    while (wrk) {
-        Feature *f = wrk->Get_feat();
-        if (f->GetNodeType() == NODE_Factory) {
-            Factory *fact = (Factory *)f;
-            return fact->Get_type();
-        }
-        wrk = wrk->Get_prev();
-    }
-
-    return name;
-}
-
-void Node::EmitCode(ostream &os)
-{
-    int vars;
-    int inh;
-
-    // -- emit the class code for an AST node
-    //    -----------------------------------
-
-    // -- class name [: inherited_class] {
-    os << "class " << name;
-    if (parent) os << " : public " << parent->name;
-    os << " {" << endl;
-
-    // -- public:
-    // --    static <returntype> *empty(void) { return (<returntype> *)0; }
-    os << "public:" << endl;
-    os << "    static " << GetReturnType() << " *empty(void) { return (" << GetReturnType() << " *)0; }" << endl;
-
-    if (opt & OPT_ABSTRACT) {
-        vars = GetLocalAttrCount();
-    } else {
-        // --    static <returntype> *factory(<attr-inits>) { return new <name>(<attrs>); }
-        os << "    static " << GetReturnType() << " *factory(";
-        vars = EmitAttrsAsFormal(os);
-        os << ") { return new " << name << "(";
-
-        for (int i = 1; i <= vars; i ++) {
-            if (i != 1) os << ", ";
-            os << "__" << i << "__";
-        }
-
-        os << "); }" << endl;
-        os << endl;
-    }
-
-    // --    virtual AstNodeType Get_AstNodeType(void) const { return <nodetype>; }
-    os << "    virtual AstNodeType Get_AstNodeType(void) const { return NODE_" << name << "; }"<< endl;
-    os << endl;
-
-    // -- protected:
-    // --    <name>(<attr-inits>) : <inherited-class>(<inits>), <attr>(<init>)... {}
-    os << "protected:" << endl;
-    os << "    explicit " << name << "(";
-    EmitAttrsAsFormal(os);
-    os << ") ";
-    if (NeedsColon()  || (parent && parent->hasInitParms)  ) os << ": ";
-    inh = (parent?parent->GetLocalAttrCount():0);
-
-    if (inh) {
-        os << parent->name << "(";
-        for (int i = 1; i <= inh; i ++) {
-            if (i != 1) os << ", ";
-            os << "__" << i << "__";
-        }
-        os << ")";
-    }
-
-    if (inh && vars - inh) os << ", ";
-    prtComma = false;
-    if (feats && feats->EmitConstruct(os, inh + 1) > inh + 1) hasInitParms = true;
-    os << " { }" << endl;
-    os << endl;
-
-    // -- protected:
-    // --     type name;
-    os << "protected:" << endl;
-    if (feats) feats->EmitAttrCode(os);
-    os << endl;
-
-    // -- public:
-    // --     virtual <type> Get_<name>(void) const { return <name>; }
-    // --     virtual void Set_<name>(type __val__) { <name> = __val__; }
-    os << "public:" << endl;
-    if (feats) feats->EmitAttrInline(os);
-    os << endl;
-
-    // --     virtual <methodspec> { <name> = __val__; }
-    // --     virtual <methodspec> = 0;
-    // --     virtual <methodspec>;
-    if (feats) feats->EmitMethod(os);
-
-    // -- };
-    os << "};" << endl;
-    os << endl;
-}
-
-void Ast::EmitCode(ostream &os)
-{
-    if (defines) os << defines << endl;
-    os << endl;
-
-    nodes->EmitCode(os);
-}
-
-void NodeList::EmitEnum(ostream &os)
-{
-    if (prev) prev->EmitEnum(os);
-
-    os << "    NODE_" << Get_node()->Get_name() << "," << endl;
-}
-
+//-------------------------------------------------------------------------------------------------------------------
+// main() -- main entry point
+//-------------------------------------------------------------------------------------------------------------------
 int main(int argc, char *argv[])
 {
+    extern int yydebug;
+    extern int openBuffer(const char *name);
+    extern char *curr_file;
+    extern int parse_error;
+    extern int yyparse(void);
+
+    char *outfile = NULL;
+
     yydebug = 0;
 
-	for (int i = 1; i < argc; i ++) {
-		if (openBuffer(argv[i])) {
-		    curr_file = argv[i];
-		    cout << "Parsing " << argv[i] << "..." << endl;
+    //
+    // -- Initialize the compiler symbol table and Common node
+    //    ----------------------------------------------------
+    nodes = Append(nodes, new NodeList(Node::Factory(NULL, AddNodeSymbol(std::string("Common"))), NULL));
+    nodes->elem()->Set_Flag(ABSTRACT);
+    AddTypeSymbol(std::string("void"));
 
-			if (yyparse()) cerr << "ERROR parsing the ast source" << endl;
-		}
-	}
+    //
+    // -- parse the files
+    //    ---------------
+    for (int i = 1; i < argc; i ++) {
+        if (strcmp(argv[i], "-o") == 0 && !outfile) {
+            outfile = argv[++i];
+            outputFile = std::string(outfile);
+            continue;
+        }
 
-	if (parse_error) {
-	    return 1;
-	}
+        if (openBuffer(argv[i])) {
+            curr_file = argv[i];
 
-    cout << "Entering Semantic Phase..." << endl;
-    tree->Get_nodes()->BuildParents();
-	semant(tree);
+            if (yyparse()) std::cerr << "ERROR parsing the ast source" << std::endl;
+            break;
+        }
+    }
 
-    // -- we are emitting a list of classes.  Therefore let's start by opening a file
-    //    and preparing to emit code for each class in turn.
-    //    ---------------------------------------------------------------------------
-    cout << "Emitting AST Code..." << endl;
-    filebuf fb;
-    fb.open ("ast-nodes.h",ios::out);
-    ostream os(&fb);
+    if (parse_error) return 1;
+    if (!Semant()) return 1;
 
-    os << "#ifndef __AST_NODES_H__" << endl;
-    os << "#define __AST_NODES_H__" << endl;
-    os << endl;
+    cpp_Emit();
 
-    // -- Emit the enum types
-    os << "typedef enum {" << endl;
-    tree->Get_nodes()->EmitEnum(os);
-    os << "} AstNodeType;" << endl;
-    os << endl;
+    std::cout << "Done!" << std::endl;
 
-    // -- Emit the actual code...
-    tree->EmitCode(os);
-    os << endl;
-    os << "#endif" << endl;
-    fb.close();
-
-    cout << "Done!" << endl;
-
-	return 0;
+    return 0;
 }

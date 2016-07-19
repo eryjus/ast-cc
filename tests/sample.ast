@@ -1,26 +1,262 @@
-// -- Include all the exernal defines required for this file
-//    ------------------------------------------------------
-$defines{
-    class Expression;
-    typedef Expression *Expr;
-}
+//===================================================================================================================
+// sample.ast -- This is a sample AST file that will demonstrate the features for the ast-cc compiler.
+//
+//    ast-cc is an Abstract Syntax Tree compiler
+//    Copyright (C) 2014  Adam Clark
+//
+//    This program is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation, either version 3 of the License, or
+//    (at your option) any later version.
+//
+//    This program is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    You should have received a copy of the GNU General Public License
+//    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+// This file represents v0.1 of the ast grammar.  This also represents a nearly complete rewrite of the
+// ast-cc compiler.  The reason for this is taht in implementing a very abstract AST in the pascal compiler,
+// I noticed several shortcomings in the feature/functionality of the current language (along with all those
+// damned dollar signs).
+//
+// This version is going to use '%%' as separators between sections so that it is closer to that of the
+// flex and bison source formatting.
+//
+// -----------------------------------------------------------------------------------------------------------------
+//
+//    Date     Tracker  Version  Pgmr  Modification
+// ----------  -------  -------  ----  -----------------------------------------------------------------------------
+// 2016-03-29    N/A     v0.1    ADCL  second version of the ast language
+//
+//===================================================================================================================
 
-// -- This is an abstract Expression
-//    ------------------------------
-$class(Expression) $abstract ${
-   $attr $type(int) $name(line_no) // -- The source file line number
-   $attr $type(string) $name(file) // -- The source file name
-   $attr $type(char *) $name(name)
-   $attr $type(int) $name(type)  = $no-init(0) // -- will be filled in the semant() as a result of type checking
-   $func $spec(void semant(void)) = $virtual
-   $func $spec(void print(ostream &s)) = { s << file << ": " << line_no; }
-$}
 
-// -- This is an expresion that is really a variable of some kind
-//    -----------------------------------------------------------
-$class(ID) $inherits(Expression) ${
-   $factory(Expression)
-   $attr $type(string) $name(id_string) = $no-inlines
-   $func $spec(void semant(void)) = $external
-   $func $spec(Symbol *GetSymbol(void)) = { return SymTable->Get(id_string); }
-$}
+//
+// -- So, the first section (up until the '%%' token) is used to set up the node declarations and inheritance
+//    structure for the nodes.  Note that there is a pre-defined class called Common in which is available
+//    to use as a common ancestor to all other node types.
+//
+//    The purpose of this section is to define the classes that will be used and the inheritance hierarchy.
+//    The ABSTRACT keyword is used to indicate that there will be no instances of that particular class
+//    created.
+//
+//    The basic grammar for this section is:
+//
+//    Node
+//      : NODE name SEMI
+//      | NODE name COLON parentname SEMI
+//      | NODE name COLON parentname ABSTRACT SEMI
+//
+//   Type
+//      : TYPE name SEMI
+//
+//   Include
+//      : INCLUDE LT filename GT
+//      | INCLUDE DQ filename DQ
+//
+//    parentname must be an already defined node name.  ast-cc only supports single inheritance.  An
+//    ABSTRACT node will not have a factory member so that it cannot be constructed on its own.
+//
+//    The TYPE phrase is used to name external types that are used in the AST structures.
+//
+//    The INCLUDE phrase is used to emit and included file name into the start of the generated file
+//    that will include the type definitions that are specified in the TYPE clauses.
+//    ------------------------------------------------------------------------------------------------------
+
+node Calculation;
+
+node Expression : Common abstract;
+node UnaryExpr : Expression abstract;
+node BinaryExpr : Expression abstract;
+
+node Ident : Expression;
+node Nbr : Expression;
+
+node Add : BinaryExpr;
+node Sub : BinaryExpr;
+node Mul : BinaryExpr;
+node Div : BinaryExpr;
+node Mod : BinaryExpr;
+
+node Neg : UnaryExpr;
+
+type Symbol;
+type Int;           // such as 'typedef long Int;' in some other source file (for compatibilty)
+type String;        // such as 'typedef std::string String;' in some other source...
+
+include "compiler_types.h"  // This would include definitions for Int and String for the target language
+                            // and would also provide things like yylineno and filename (see below)
+
+%%
+
+//
+// -- So, the Common class is an undecorated node type.  By default, the definition is assumed to be:
+//
+//              class Common abstract;
+//
+//    There are no assumed attributes or methods for this class.  However, the class can be extended.
+//    In this example, the Common node is extended to include the filename and line number of the
+//    source file that is being read (assuming that the parser maintains yylineno and filename, of
+//    course).  In this manner, all nodes in the tree will have a reference back to the source code
+//    that was responsible for generating it, which might help with error reporting.
+//
+//    The no-init() tag at the end of both of the attributes below indicate that the attribute will
+//    not be initialized as part of the constructor parameters, but rather will have the specified
+//    value set to the attribute.
+//
+//    The basic grammar for an attribute is:
+//
+//    Attr
+//      : ATTR parentname COLONCOLON name COLON typename AttrSpecifierList SEMI
+//      | ATTR parentName COLONCOLON name COLON typename AttrSpecifierList NOINIT LPAREN value RPAREN SEMI
+//
+//    AttrSpecifierList
+//      : <<empty>>
+//      | SpecifierList COMMA Specifier
+//
+//    AttrSpecifier
+//      : PRIVATE
+//      | PUBLIC
+//      | PROTECTED
+//      | STATIC
+//      | NOINLINES
+//
+//    parentname and typename must be known and defined in the declarations section above.  If no
+//    AttrSpecifier is specified, the default is assumed to be PRIVATE.
+//
+//    value can be anything that is legitimate for the target language.  Yes, the means that the
+//    code here would be tied to the target language.  However, the assignment operation is handled
+//    by the code emitter, so it is highly recommended that this value be as language independent as
+//    possible.
+//    -----------------------------------------------------------------------------------------------
+attr Common::line : Int no-init(yylineno);
+attr Common::file : String no-init(filename);
+
+//
+// -- The Calculation node is used to hold the complete AST.  It has a single attribute that is the
+//    expression to calculate.  It also is used to make sure that it cannot be confused with any
+//    other node (since it is not inherited from Common).  Note that the type is of Expression.
+//    However, the proper implementation is not a single instance but rather a pointer or reference
+//    to the object.  The target language will dictate how this is implmentated and will therefore
+//    fill in the blanks.
+//
+//    It also has 2 methods that will be generated.  One method is implemented in this file while
+//    the other method is noted to be implmented externally.  Externally implemented methods may not
+//    be available for all target languages.
+//
+//    The basic grammar for a method is:
+//
+//    Meth
+//      : METH parentname COLONCOLON name LPAREN parmList RPAREN COLON returntype MethSpecifierList EXTERNAL SEMI
+//      | METH parentname COLONCOLON name LPAREN parmList RPAREN COLON returntype MethSpecifierList LBRACE code RBRACE
+//
+//    MethSpecifierList
+//      : <<empty>>
+//      | SpecifierList COMMA Specifier
+//
+//    MethSpecifier
+//      : PRIVATE
+//      | PUBLIC
+//      | PROTECTED
+//      | INLINE
+//      | STATIC
+//      | ABSTRACT
+//
+//    If code is included in the definition, then it will be output in the file directly.  Some
+//    target languages will require this while other will complain about duplicate functions in the file.
+//    However, the code that is specified is emitted directly to the target language file.  This code is
+//    tied to the target language.  It is highly recommended that this code be a language independent as
+//    possible.
+//
+//    If no MethSpecifier is specified, then the method is assumed to be PUBLIC.
+//    --------------------------------------------------------------------------------------------------------
+attr Calculation::expr : Expression;
+meth Calculation::Semant(void) : void external;
+meth Calculation::Calc(void) : Int { expr->Calc(); }
+
+//
+// -- The following is the rest of the sample file
+//    Abstract expressions
+//    --------------------------------------------
+meth Expression::Semant(void) : void abstract;
+meth Expression::Calc(void) : Int abstract;
+
+//
+// -- Abstract unary expressions
+//    --------------------------
+attr UnaryExpr::operand : Expression;
+
+//
+// -- Abstract Binary Expressions
+//    ---------------------------
+attr BinaryExpr::left : Expression;
+attr BinaryExpr::right : Expression;
+
+//
+// -- Identifiers
+//    -----------
+attr Ident::sym : Symbol;
+attr Ident::name : String no-init(sym->GetName());
+meth Ident::Calc(void) : Int { sym->GetValue(); }
+meth Ident::Semant(void) : void {}
+
+
+//
+// -- Integers
+//    --------
+attr Nbr::value : Int;
+meth Nbr::Calc(void) : Int { return value; }
+meth Nbr::Semant(void) : void {}
+
+
+//
+// -- Addition
+//    --------
+meth Add::Calc(void) : Int { return left->Calc() + right->Calc(); }
+meth Add::Semant(void) : void external;
+
+
+//
+// -- Subtraction
+//    -----------
+meth Sub::Calc(void) : Int { return left->Calc() - right->Calc(); }
+meth Sub::Semant(void) : void external;
+
+
+//
+// -- Multiplication
+//    --------------
+meth Mul::Calc(void) : Int { return left->Calc() * right->Calc(); }
+meth Mul::Semant(void) : void external;
+
+
+//
+// -- Division
+//    --------
+meth Div::Calc(void) : Int { return left->Calc() / right->Calc(); }
+meth Div::Semant(void) : void external;
+
+
+//
+// -- Modulo
+//    ------
+meth Mod::Calc(void) : Int { return left->Calc() % right->Calc(); }
+meth Mod::Semant(void) : void external;
+
+
+//
+// -- Negation
+//    --------
+meth Neg::Calc(void) : Int { return -(operand->Calc()); }
+meth Nex::Semant(void) : void external;
+
+
+%%
+
+//
+// -- Anything after the second '%%' token is copied into the output file directly without any
+//    parsing or verification.  Use this judiciously since it must be language dependent.
+//    ========================================================================================

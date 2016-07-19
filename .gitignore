@@ -1,17 +1,27 @@
-﻿# Code::Blocks project files
+﻿# IDE project files
 *.depend
 *.layout
+*.kdev4
 .directory
+Issues
 
 # other targets from building
 parser.cc
 lexer.cc
 parser.h
 parser.output
+ast-cc
+*.rpt
+parser.hh
 
 # binary targets
 obj/*
 bin/*
+*.o
+*.d
 
 # backup files
 *~
+
+# directories
+.kdev4

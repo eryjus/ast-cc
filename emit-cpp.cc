@@ -30,6 +30,10 @@
 //    Date     Tracker  Version  Pgmr  Modification
 // ----------  -------  -------  ----  -----------------------------------------------------------------------------
 // 2016-04-10    N/A     v0.1    ADCL  second version of the ast language
+// 2016-09-27   #297     v0.1    ADCL  The Empty() static function also has a const qualifier; remove const.
+// 2016-09-27   #299     v0.1    ADCL  The constructor parameters are const, but that is not really accurate.
+//                                     Removing the const qualifier.
+// 2016-09-27   #300     v0.1    ADCL  Cleaning up some spacing.
 //
 //===================================================================================================================
 
@@ -143,7 +147,7 @@ static bool cpp_EmitConstructorParms(std::ofstream &os, Node *node)
 
         if (a->Get_Flags() & NOINIT) continue;
         if (parmPrinted) os << "," << std::endl << "\t\t";
-        os << "const " << a->Get_Type()->Get_Name() << (a->Get_Type()->Get_Kind()==NODE?" *":" ")
+        os << a->Get_Type()->Get_Name() << (a->Get_Type()->Get_Kind()==NODE?" *":" ")
                 << "__init__" << a->Get_Name();
         parmPrinted = true;
     }
@@ -372,7 +376,7 @@ static void cpp_EmitEmptyFunc(std::ofstream &os, Node *node)
     os << "\t//---------------------------------------------------------------------------------" << std::endl;
 
     os << "public:" << std::endl;
-    os << "\tstatic " << node->Get_Name()->Get_Name() << " *Empty(void) const { return NULL; }" << std::endl << std::endl;
+    os << "\tstatic " << node->Get_Name()->Get_Name() << " *Empty(void) { return NULL; }" << std::endl << std::endl;
 }
 
 
@@ -419,7 +423,7 @@ static void cpp_EmitGetType(std::ofstream &os, Node *node)
     os << "\t//---------------------------------------------------------------------------------" << std::endl;
 
     os << "public:" << std::endl;
-    os << "\tvirtual ASTNodeType _GetType(void) const";
+    os << "\tvirtual ASTNodeType _GetType(void) const ";
 
     if (node->Get_Flags() & ABSTRACT) os << " = 0;" << std::endl << std::endl;
     else os << "{ return NODE_TYPE_" << node->Get_Name()->Get_Name() << "; }" << std::endl << std::endl;
@@ -436,7 +440,7 @@ static void cpp_EmitGetTypeString(std::ofstream &os, Node *node)
     os << "\t//---------------------------------------------------------------------------------" << std::endl;
 
     os << "public:" << std::endl;
-    os << "\tvirtual const char *_GetTypeString(void) const";
+    os << "\tvirtual const char *_GetTypeString(void) const ";
 
     if (node->Get_Flags() & ABSTRACT) os << " = 0;" << std::endl << std::endl;
     else os << "{ return \"" << node->Get_Name()->Get_Name() << "\"; }" << std::endl << std::endl;

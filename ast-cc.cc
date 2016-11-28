@@ -30,6 +30,7 @@
 //    Date     Tracker  Version  Pgmr  Modification
 // ----------  -------  -------  ----  -----------------------------------------------------------------------------
 // 2016-03-28    N/A     v0.1    ADCL  second version of the ast language
+// 2016-10-18   #305     v0.1    ADCL  Remove extra "()" in an initializer and allow an empty initializer.
 //
 //===================================================================================================================
 
@@ -218,15 +219,6 @@ bool Semant(void)
             if ((f & PROTECTED) && (f & PRIVATE)) {
                 fprintf(stderr, "Error: Cannot specify both PROTECTED and PRIVATE on attribute %s in class %s\n",
                         a->Get_Name().c_str(), n->Get_Name()->Get_Name().c_str());
-                rv = false;
-            }
-
-            //
-            // -- If an attribute has a no-init flag, make sure we have initialization code
-            //    -------------------------------------------------------------------------
-            if ((f & NOINIT) && a->Get_Code() == std::string("")) {
-                fprintf(stderr, "Error: Attribute %s in class %s has a NO-INIT specifier, but no initialization "
-                        "code\n", a->Get_Name().c_str(), n->Get_Name()->Get_Name().c_str());
                 rv = false;
             }
         }

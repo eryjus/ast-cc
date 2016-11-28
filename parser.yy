@@ -477,11 +477,6 @@ MethSpec
             $$ = INLINE;
         }
 
-    | TOK_ABSTRACT
-        {
-            $$ = ABSTRACT;
-        }
-
 ParmList
     : Parms
         {

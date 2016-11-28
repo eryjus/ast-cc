@@ -66,6 +66,7 @@
 //    Date     Tracker  Version  Pgmr  Modification
 // ----------  -------  -------  ----  -----------------------------------------------------------------------------
 // 2016-03-29    N/A     v0.1    ADCL  second version of the ast language
+// 2016-10-18   #305     v0.1    ADCL  Remove extra "()" in an initializer and allow an empty initializer.
 //
 //=================================================================================================================*/
 
@@ -161,7 +162,8 @@ LF          (\n|\r|\n\r|\r\n)
 
 <VAL>"("            { depth ++; yymore(); }
 <VAL>")"            { if (--depth == 0) {
-                        yylval.code = strdup(yytext);
+                        yylval.code = strdup(yytext + 1);
+						yylval.code[strlen(yylval.code) - 1] = 0;
                         BEGIN(INITIAL);
                         return TOK_CODE;
                       } else yymore();

@@ -1,0 +1,4 @@
+The avocado folder contains the tests that are used to verify the
+ast-cc Abstract Syntax Tree compiler.  These tests are architected
+to be run using Avocado Testing Framework.  For more information,
+see https://avocado-framework.github.io/ for more information.

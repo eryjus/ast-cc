@@ -3,12 +3,13 @@
 *.layout
 *.kdev4
 .directory
+.project
+.cproject
 Issues
 
 # other targets from building
 parser.cc
 lexer.cc
-parser.h
 parser.output
 ast-cc
 *.rpt
@@ -25,3 +26,5 @@ bin/*
 
 # directories
 .kdev4
+/bin/
+.settings/*
